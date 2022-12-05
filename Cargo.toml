@@ -1,0 +1,15 @@
+[package]
+name = "rust-arrayfire-fdtd"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ndarray = "0.15.6"
+libc = "0.2.17"
+ocl = "0.19"
+piston_window = "0.127.0"
+
+[dev-dependencies]
+systemstat = "0.2.2"
