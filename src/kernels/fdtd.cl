@@ -70,3 +70,18 @@ __kernel void velocity_step(__global double *pressure, __global double *vx,
     }
   }
 }
+
+__kernel void analysis_step(__global double *pressure, __global double *analysis,
+                            __global double *geometry, uint size_w, uint size_h,
+                            uint size_d, double rho_dt_dx) {
+  size_t i = get_global_id(0);
+  size_t w = (i / (size_h * size_d)) % size_w;
+  size_t h = (i / (size_d)) % size_h;
+  size_t d = i % size_d;
+
+  size_t size = size_d * size_h * size_w;
+
+  if (i < size) {
+    double current_pressure = pressure[i];
+  }
+}

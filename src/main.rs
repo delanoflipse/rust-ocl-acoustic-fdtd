@@ -11,57 +11,74 @@
   // clippy::expect_used,
 )]
 
+extern crate dotenv;
+extern crate ocl;
+extern crate piston_window;
+
+use dotenv::dotenv;
 use ndarray::s;
 use piston_window::{clear, rectangle, EventLoop, PistonWindow, WindowSettings};
 use std::cmp;
 use std::time::Instant;
-extern crate piston_window;
-
-extern crate ocl;
+use human_bytes::human_bytes;
 
 mod constants;
+mod env;
 mod kernels;
 mod parameters;
 mod simulation;
 
-const ITERATIONS: i64 = 50000;
-const HEADLESS: bool = false;
-
-const FPS: u64 = 60;
-const TARGET_WINDOW_WIDTH: u32 = 500;
-const TARGET_WINDOW_HEIGHT: u32 = 500;
-const IT_PER_SETP: u32 = 3;
-
 // TODO: split up properly between modes
 fn main() {
+  dotenv().ok();
+
+  let headless_mode: bool = env::var_bool("HEADLESS", Some(false));
+
   let params = parameters::create_params();
   let mut sim = simulation::Simulation::new(&params);
 
   sim.sources.push(simulation::Source {
-    frequency: 200.0,
+    frequency: 800.0,
     invert_phase: false,
     position: [params.w_parts / 2, params.h_parts / 2, params.d_parts / 2],
-    pulses: i64::MAX,
+    // pulses: i64::MAX,
+    pulses: 1,
     start_at: 0.0,
   });
 
-  println!("Starting simulation!");
+  // TODO: geometry
 
-  if HEADLESS {
+  println!("{}", human_bytes(params.grid_size as f64 * 8f64 * 5f64));
+  println!("Starting simulation!");
+  for key in ["MAX_FREQUENCY", "HEADLESS"] {
+    println!("[ENV] {}: {}", key, dotenv::var(key).unwrap());
+  }
+
+  if headless_mode {
+    let iteration_count: i64 = env::var_num::<i64>("SIM_ITERATIONS", None);
     let now = Instant::now();
-    for _ in 0..ITERATIONS {
+    for _ in 0..iteration_count {
       // while true {
       sim.step();
     }
     // ns
-    let simulated = sim.time * 1000f64 * 1000f64 / (ITERATIONS as f64);
-    let elapsed = (now.elapsed().as_micros() as f64) / (ITERATIONS as f64);
-    println!("Elapsed: {:.2?} IRL, {:.2?} simulated", now.elapsed(), sim.time);
+    let simulated = sim.time * 1000f64 * 1000f64 / (iteration_count as f64);
+    let elapsed = (now.elapsed().as_micros() as f64) / (iteration_count as f64);
+    println!(
+      "Elapsed: {:.2?} IRL, {:.2?} simulated",
+      now.elapsed(),
+      sim.time
+    );
     println!("Average: {:.2?}us per simulation", simulated);
     println!("Factor: {:.2}x", elapsed / simulated);
     println!("Ran simulation!");
   } else {
-    let cell_size = cmp::min(TARGET_WINDOW_WIDTH, TARGET_WINDOW_HEIGHT) as f64
+    let max_fps: u64 = 60;
+    let target_window_width: u32 = 500;
+    let target_window_heigh: u32 = 500;
+    let iterations_per_step: u32 = env::var_num::<u32>("ITERATIONS_PER_STEP", Some(1u32));
+
+    let cell_size = cmp::min(target_window_width, target_window_heigh) as f64
       / cmp::max(params.w_parts, params.d_parts) as f64;
 
     let w_width = (cell_size * (params.w_parts as f64)) as u32;
@@ -72,11 +89,11 @@ fn main() {
       .build()
       .unwrap();
 
-    window.set_max_fps(FPS);
+    window.set_max_fps(max_fps);
 
     while let Some(e) = window.next() {
       window.draw_2d(&e, |c, gfx, _device| {
-        for _ in 0..IT_PER_SETP {
+        for _ in 0..iterations_per_step {
           sim.step();
         }
         clear([1.0; 4], gfx);
