@@ -1,7 +1,7 @@
 __kernel void pressure_step(__global double *pressure, __global double *vx,
                             __global double *vy, __global double *vz,
                             __global double *geometry, uint size_w, uint size_h,
-                            uint size_d, double kappa_dt_dx) {
+                            uint size_d, double kappa_dt_dx, double air_dampening) {
   size_t i = get_global_id(0);
   size_t w = (i / (size_h * size_d)) % size_w;
   size_t h = (i / (size_d)) % size_h;
@@ -28,7 +28,7 @@ __kernel void pressure_step(__global double *pressure, __global double *vx,
       delta_velocity += vz[i + d_stride] - vz[i];
     }
 
-    pressure[i] = (current + delta_velocity * kappa_dt_dx);
+    pressure[i] = (current + delta_velocity * kappa_dt_dx) * air_dampening;
   }
 }
 

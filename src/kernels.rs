@@ -95,7 +95,7 @@ pub fn create_program(params: &parameters::SimulationParameters) -> ocl::Result<
     .arg(params.d_parts as u32)
     .arg(params.dt)
     .build()
-    .expect("Cannot create velocity kernel!");
+    .expect("Cannot create analysis kernel!");
 
   Ok(KernalProgram {
     queue,
@@ -115,48 +115,21 @@ pub fn create_program(params: &parameters::SimulationParameters) -> ocl::Result<
 // run program kernels
 // read data from buffers
 pub fn run_kernels(sim: &mut simulation::Simulation) -> ocl::Result<()> {
-  sim
-    .kernel_prog
-    .p_buffer
-    .write(sim.pressure.as_slice().expect("Cannot copy pressure data"))
-    .enq()
-    .expect("Cannot run write operation!");
+  let buffers = [
+    (&mut sim.pressure, &mut sim.kernel_prog.p_buffer),
+    (&mut sim.velocity_x, &mut sim.kernel_prog.vx_buffer),
+    (&mut sim.velocity_y, &mut sim.kernel_prog.vy_buffer),
+    (&mut sim.velocity_z, &mut sim.kernel_prog.vz_buffer),
+    (&mut sim.geometry, &mut sim.kernel_prog.geometry_buffer),
+    (&mut sim.analysis, &mut sim.kernel_prog.analysis_buffer),
+  ];
 
-  sim
-    .kernel_prog
-    .vx_buffer
-    .write(sim.velocity_x.as_slice().expect("Cannot copy vx data"))
-    .enq()
-    .expect("Cannot run write operation!");
-
-  sim
-    .kernel_prog
-    .vy_buffer
-    .write(sim.velocity_y.as_slice().expect("Cannot copy vy data"))
-    .enq()
-    .expect("Cannot run write operation!");
-
-  sim
-    .kernel_prog
-    .vz_buffer
-    .write(sim.velocity_z.as_slice().expect("Cannot copy vz data"))
-    .enq()
-    .expect("Cannot run write operation!");
-
-  // TODO: write oncer
-  sim
-    .kernel_prog
-    .geometry_buffer
-    .write(sim.geometry.as_slice().expect("Cannot copy geometry data"))
-    .enq()
-    .expect("Cannot run write operation!");
-
-  sim
-    .kernel_prog
-    .analysis_buffer
-    .write(sim.analysis.as_slice().expect("Cannot copy analysis data"))
-    .enq()
-    .expect("Cannot run write operation!");
+  for (ndarr, buf) in &buffers {
+    buf
+      .write(ndarr.as_slice().expect("Cannot create slice from array"))
+      .enq()
+      .expect("Cannot run write operation!");
+  }
 
   unsafe {
     sim
@@ -171,52 +144,19 @@ pub fn run_kernels(sim: &mut simulation::Simulation) -> ocl::Result<()> {
       .enq()
       .expect("Cannot run pressure kernel!");
 
-    sim
-      .kernel_prog
-      .analysis_kernel
-      .enq()
-      .expect("Cannot run analysis kernel!");
+    // sim
+    //   .kernel_prog
+    //   .analysis_kernel
+    //   .enq()
+    //   .expect("Cannot run analysis kernel!");
   }
 
-  sim
-    .kernel_prog
-    .p_buffer
-    .read(
-      sim
-        .pressure
-        .as_slice_mut()
-        .expect("Cannot write pressure data"),
-    )
-    .enq()
-    .expect("Cannot run read operation for pressure buffer!");
-
-  sim
-    .kernel_prog
-    .vx_buffer
-    .read(sim.velocity_x.as_slice_mut().expect("Cannot write vx data"))
-    .enq()
-    .expect("Cannot run read operation for vx buffer!");
-
-  sim
-    .kernel_prog
-    .vy_buffer
-    .read(sim.velocity_y.as_slice_mut().expect("Cannot write vy data"))
-    .enq()
-    .expect("Cannot run read operation for vy buffer!");
-
-  sim
-    .kernel_prog
-    .vz_buffer
-    .read(sim.velocity_z.as_slice_mut().expect("Cannot write vz data"))
-    .enq()
-    .expect("Cannot run read operation for vz buffer!");
-
-  sim
-    .kernel_prog
-    .analysis_buffer
-    .read(sim.analysis.as_slice_mut().expect("Cannot write analysis data"))
-    .enq()
-    .expect("Cannot run read operation for vz buffer!");
+  for (ndarr, buf) in buffers {
+    buf
+      .read(ndarr.as_slice_mut().expect("Cannot create slice from array"))
+      .enq()
+      .expect("Cannot run write operation!");
+  }
 
   Ok(())
 }
