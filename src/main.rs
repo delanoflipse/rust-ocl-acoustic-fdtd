@@ -37,16 +37,23 @@ fn main() {
   let params = parameters::create_params();
   let mut sim = simulation::Simulation::new(&params);
 
+  for ((w,h,d), _) in sim.geometry.clone().indexed_iter() {
+    if w > 2 * sim.params.w_parts / 3 && d > 2 * sim.params.d_parts / 3 {
+      sim.geometry[[ w,h, d]] = 1i8;
+    }
+  }
+
   sim.sources.push(simulation::Source {
     frequency: 800.0,
     invert_phase: false,
-    position: [params.w_parts / 2, params.h_parts / 2, params.d_parts / 2],
+    position: [params.w_parts / 3, params.h_parts / 2, params.d_parts / 3],
     // pulses: i64::MAX,
     pulses: 1,
     start_at: 0.0,
   });
 
   // TODO: geometry
+  sim.calculate_neighbours();
 
   println!("{}", human_bytes(params.grid_size as f64 * 8f64 * 5f64));
   println!("Starting simulation!");
@@ -69,7 +76,7 @@ fn main() {
       now.elapsed(),
       sim.time
     );
-    println!("Average: {:.2?}us per simulation", simulated);
+    println!("Average: {:.2?}us per simulation", elapsed);
     println!("Factor: {:.2}x", elapsed / simulated);
     println!("Ran simulation!");
   } else {
@@ -98,24 +105,27 @@ fn main() {
         }
         clear([1.0; 4], gfx);
 
-        // sim.pressure.slice_axis(axis, indices);
-        let slice = sim.pressure.slice(s![.., params.d_parts / 2, ..]);
-
-        let mut max_value = 1e-99f64;
         let h = params.h_parts / 2;
+        // sim.pressure.slice_axis(axis, indices);
+        let slice = sim.pressure.slice(s![.., h, ..]);
+
+        let mut max_value = 0f64;
         for v in slice.iter() {
           max_value = v.abs().max(max_value);
         }
         let scalar = max_value as f32;
         println!("Time: {}s ({}) {}", sim.time, sim.iteration, max_value);
 
+        if max_value == 0.0f64 {
+          return;
+        }
+
         for ((w, d), v) in slice.indexed_iter() {
-          let geometry = sim.geometry[[w, h, d]] as f32;
-          let p_full = sim.pressure[[w, h, d]] as f32;
-          let p = p_full / scalar;
+          let geometry = sim.geometry[[w, h, d]];
+          let p = (*v as f32) / scalar;
           let r = if p > 0f32 { p } else { 0f32 };
           let b = if p < 0f32 { -p } else { 0f32 };
-          let g = 0.0;
+          let g = if geometry > 0 {0.1f32} else {0f32};
 
           let x = w as f64 * cell_size;
           let y = d as f64 * cell_size;

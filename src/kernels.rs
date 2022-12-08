@@ -1,4 +1,4 @@
-use ocl::{Buffer, Kernel, MemFlags, ProQue};
+use ocl::{Buffer, Kernel, MemFlags, ProQue, OclPrm};
 
 use crate::{constants, parameters, simulation};
 
@@ -7,20 +7,19 @@ const KERNEL_SOURCE: &str = include_str!("./kernels/fdtd.cl");
 pub struct KernalProgram {
   queue: ProQue,
   pressure_kernel: Kernel,
-  velocity_kernel: Kernel,
   analysis_kernel: Kernel,
 
+  pv_buffer: Buffer<f64>,
   p_buffer: Buffer<f64>,
-  vx_buffer: Buffer<f64>,
-  vy_buffer: Buffer<f64>,
-  vz_buffer: Buffer<f64>,
+  pn_buffer: Buffer<f64>,
   analysis_buffer: Buffer<f64>,
-  geometry_buffer: Buffer<f64>,
+  geometry_buffer: Buffer<i8>,
+  neighbour_buffer: Buffer<i8>,
 }
 
-pub fn create_buffer(queue: &ProQue, flags: MemFlags) -> Buffer<f64> {
+pub fn create_buffer<T: OclPrm>(queue: &ProQue, flags: MemFlags) -> Buffer<T> {
   return queue
-    .buffer_builder::<f64>()
+    .buffer_builder::<T>()
     .fill_val(Default::default())
     .flags(flags)
     .build()
@@ -31,12 +30,6 @@ pub fn create_buffer(queue: &ProQue, flags: MemFlags) -> Buffer<f64> {
 pub fn create_program(params: &parameters::SimulationParameters) -> ocl::Result<KernalProgram> {
   let platform = ocl::Platform::default();
   println!("Platform: {}", platform.name()?);
-  // let queue: ocl::Queue::
-  // let context = ocl::Context::builder();
-
-  // let program = ocl::Program::builder()
-  //   .src(KERNEL_SOURCE)
-  //   .build();
 
   let queue = ProQue::builder()
     .platform(platform)
@@ -44,46 +37,31 @@ pub fn create_program(params: &parameters::SimulationParameters) -> ocl::Result<
     .dims(params.w_parts * params.h_parts * params.d_parts)
     .build()?;
 
-  // let rw_flag = MemFlags::new().use_host_ptr().read_write();
-  // let rw_flag = MemFlags::new().alloc_host_ptr().read_write();
   let rw_flag = MemFlags::READ_WRITE | MemFlags::ALLOC_HOST_PTR;
-  let p_buffer = create_buffer(&queue, rw_flag);
-  let vx_buffer = create_buffer(&queue, rw_flag);
-  let vy_buffer = create_buffer(&queue, rw_flag);
-  let vz_buffer = create_buffer(&queue, rw_flag);
-  let analysis_buffer = create_buffer(&queue, rw_flag);
-  let geometry_buffer = create_buffer(&queue, MemFlags::READ_ONLY | MemFlags::ALLOC_HOST_PTR);
+  let pv_buffer = create_buffer::<f64>(&queue, rw_flag);
+  let p_buffer = create_buffer::<f64>(&queue, rw_flag);
+  let pn_buffer = create_buffer::<f64>(&queue, rw_flag);
+  let analysis_buffer = create_buffer::<f64>(&queue, rw_flag);
+  let geometry_buffer = create_buffer::<i8>(&queue, MemFlags::READ_ONLY | MemFlags::ALLOC_HOST_PTR);
+  let neighbour_buffer = create_buffer::<i8>(&queue, MemFlags::READ_ONLY | MemFlags::ALLOC_HOST_PTR);
 
   let rho_param = -1f64 * constants::RHO_INVERSE * params.dt_over_dx;
   let pressure_kernel = queue
-    .kernel_builder("pressure_step")
+    .kernel_builder("compact_step")
+    .arg(&pv_buffer)
     .arg(&p_buffer)
-    .arg(&vx_buffer)
-    .arg(&vy_buffer)
-    .arg(&vz_buffer)
+    .arg(&pn_buffer)
     .arg(&geometry_buffer)
+    .arg(&neighbour_buffer)
     .arg(params.w_parts as u32)
     .arg(params.h_parts as u32)
     .arg(params.d_parts as u32)
-    .arg(rho_param)
-    .arg(params.air_dampening)
+    .arg(params.d1)
+    .arg(params.d2)
+    .arg(params.d3)
+    .arg(params.d4)
     .build()
-    .expect("Cannot create pressure kernel!");
-
-  let kappa_param = -1f64 * constants::KAPPA * params.dt_over_dx;
-  let velocity_kernel = queue
-    .kernel_builder("velocity_step")
-    .arg(&p_buffer)
-    .arg(&vx_buffer)
-    .arg(&vy_buffer)
-    .arg(&vz_buffer)
-    .arg(&geometry_buffer)
-    .arg(params.w_parts as u32)
-    .arg(params.h_parts as u32)
-    .arg(params.d_parts as u32)
-    .arg(kappa_param)
-    .build()
-    .expect("Cannot create velocity kernel!");
+    .expect("Cannot create step kernel!");
 
   let analysis_kernel = queue
     .kernel_builder("analysis_step")
@@ -99,14 +77,13 @@ pub fn create_program(params: &parameters::SimulationParameters) -> ocl::Result<
 
   Ok(KernalProgram {
     queue,
+    pv_buffer,
     p_buffer,
-    vx_buffer,
-    vy_buffer,
-    vz_buffer,
-    geometry_buffer,
+    pn_buffer,
     analysis_buffer,
+    geometry_buffer,
+    neighbour_buffer,
     pressure_kernel,
-    velocity_kernel,
     analysis_kernel,
   })
 }
@@ -115,16 +92,25 @@ pub fn create_program(params: &parameters::SimulationParameters) -> ocl::Result<
 // run program kernels
 // read data from buffers
 pub fn run_kernels(sim: &mut simulation::Simulation) -> ocl::Result<()> {
-  let buffers = [
+  let write_buffers_f64 = [
+    (&mut sim.pressure_previous, &mut sim.kernel_prog.pv_buffer),
     (&mut sim.pressure, &mut sim.kernel_prog.p_buffer),
-    (&mut sim.velocity_x, &mut sim.kernel_prog.vx_buffer),
-    (&mut sim.velocity_y, &mut sim.kernel_prog.vy_buffer),
-    (&mut sim.velocity_z, &mut sim.kernel_prog.vz_buffer),
-    (&mut sim.geometry, &mut sim.kernel_prog.geometry_buffer),
     (&mut sim.analysis, &mut sim.kernel_prog.analysis_buffer),
   ];
 
-  for (ndarr, buf) in &buffers {
+  let write_buffers_i8 = [
+    (&mut sim.geometry, &mut sim.kernel_prog.geometry_buffer),
+    (&mut sim.neighbours, &mut sim.kernel_prog.neighbour_buffer),
+  ];
+
+  for (ndarr, buf) in &write_buffers_f64 {
+    buf
+      .write(ndarr.as_slice().expect("Cannot create slice from array"))
+      .enq()
+      .expect("Cannot run write operation!");
+  }
+  
+  for (ndarr, buf) in &write_buffers_i8 {
     buf
       .write(ndarr.as_slice().expect("Cannot create slice from array"))
       .enq()
@@ -132,12 +118,6 @@ pub fn run_kernels(sim: &mut simulation::Simulation) -> ocl::Result<()> {
   }
 
   unsafe {
-    sim
-      .kernel_prog
-      .velocity_kernel
-      .enq()
-      .expect("Cannot run velocity kernel!");
-
     sim
       .kernel_prog
       .pressure_kernel
@@ -151,7 +131,13 @@ pub fn run_kernels(sim: &mut simulation::Simulation) -> ocl::Result<()> {
     //   .expect("Cannot run analysis kernel!");
   }
 
-  for (ndarr, buf) in buffers {
+  let read_buffers = [
+    (&mut sim.pressure_previous, &mut sim.kernel_prog.p_buffer),
+    (&mut sim.pressure, &mut sim.kernel_prog.pn_buffer),
+    (&mut sim.analysis, &mut sim.kernel_prog.analysis_buffer),
+  ];
+
+  for (ndarr, buf) in read_buffers {
     buf
       .read(ndarr.as_slice_mut().expect("Cannot create slice from array"))
       .enq()
