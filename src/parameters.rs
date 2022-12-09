@@ -34,7 +34,7 @@ pub fn create_params() -> SimulationParameters {
   let room_height: f64 = env::var_num::<f64>("ROOM_HEIGHT", Some(1f64));
   let room_depth: f64 = env::var_num::<f64>("ROOM_DEPTH", Some(1f64));
   
-  // # SIMULATION
+  // SIMULATION
   let max_frequency: f64 = env::var_num::<f64>("MAX_FREQUENCY", None);
   let air_dampening: f64 = env::var_num::<f64>("AIR_DAMPENING", Some(1f64));
 
@@ -47,7 +47,7 @@ pub fn create_params() -> SimulationParameters {
   let lambda_courant: f64 = (C_AIR * dt) / dx;
   let lambda_2: f64 = lambda_courant * lambda_courant;
 
-  // # CALCULATED
+  // CALCULATED
   let w_parts: usize = (room_width / dx).floor() as usize + 1;
   let h_parts: usize = (room_height / dx).floor() as usize + 1;
   let d_parts: usize = (room_depth / dx).floor() as usize + 1;

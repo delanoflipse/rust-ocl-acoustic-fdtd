@@ -2,9 +2,7 @@
 #define D2_SIZE 12
 #define D3_SIZE 8
 
-bool is_valid_position(uint size, uint index) {
-  return index > 0 && index < size - 1;
-}
+bool in_range(uint size, uint index) { return index > 0 && index < size; }
 
 __kernel void compact_step(__global double *previous_pressure,
                            __global double *pressure,
@@ -24,6 +22,13 @@ __kernel void compact_step(__global double *previous_pressure,
   char geometry_type = geometry[i];
   char neighbour_count = neighbours[i];
 
+  bool w_plus = in_range(size_w, w + 1);
+  bool w_min = in_range(size_w, w - 1);
+  bool h_plus = in_range(size_h, h + 1);
+  bool h_min = in_range(size_h, h - 1);
+  bool d_plus = in_range(size_d, d + 1);
+  bool d_min = in_range(size_d, d - 1);
+
   if (i >= size || i < 0) {
     return;
   }
@@ -36,62 +41,82 @@ __kernel void compact_step(__global double *previous_pressure,
   double current = pressure[i];
   double previous = previous_pressure[i];
   double d_sum = 0.0;
+  double n_factor = 1.0;
 
+  // TODO: better check (epsilon)
   if (d1 != 0.0) {
     double sum = 0.0;
-    uint positions[D1_SIZE] = {
-        i + w_stride, i - w_stride, i + h_stride,
-        i - h_stride, i + d_stride, i - d_stride,
-    };
 
-    for (int i = 0; i < D1_SIZE; i++) {
-      uint pos = positions[i];
-      if (is_valid_position(size, pos)) {
-        sum += pressure[pos];
-      }
-    }
+    if (w_plus)
+      sum += pressure[i + w_stride];
+    if (w_min)
+      sum += pressure[i - w_stride];
+    if (h_plus)
+      sum += pressure[i + h_stride];
+    if (h_min)
+      sum += pressure[i - h_stride];
+    if (d_plus)
+      sum += pressure[i + d_stride];
+    if (d_min)
+      sum += pressure[i - d_stride];
 
     d_sum += d1 * sum;
   }
 
+  // TODO: better check (epsilon)
   if (d2 != 0.0) {
     double sum = 0.0;
-    uint positions[D2_SIZE] = {
-        i + w_stride + h_stride, i - w_stride + h_stride,
-        i + w_stride - h_stride, i - w_stride - h_stride,
 
-        i + h_stride + d_stride, i - h_stride + d_stride,
-        i + h_stride - d_stride, i - h_stride - d_stride,
+    if (w_plus && h_plus)
+      sum += pressure[i + w_stride + h_stride];
+    if (w_min && h_plus)
+      sum += pressure[i - w_stride + h_stride];
+    if (w_min && h_min)
+      sum += pressure[i - w_stride - h_stride];
+    if (w_plus && h_min)
+      sum += pressure[i + w_stride - h_stride];
 
-        i + w_stride + d_stride, i - w_stride + d_stride,
-        i + w_stride - d_stride, i - w_stride - d_stride,
-    };
+    if (d_plus && h_plus)
+      sum += pressure[i + d_stride + h_stride];
+    if (d_min && h_plus)
+      sum += pressure[i - d_stride + h_stride];
+    if (d_min && h_min)
+      sum += pressure[i - d_stride - h_stride];
+    if (d_plus && h_min)
+      sum += pressure[i + d_stride - h_stride];
 
-    for (int i = 0; i < D2_SIZE; i++) {
-      uint pos = positions[i];
-      if (is_valid_position(size, pos)) {
-        sum += pressure[pos];
-      }
-    }
+    if (w_plus && d_plus)
+      sum += pressure[i + w_stride + d_stride];
+    if (w_min && d_plus)
+      sum += pressure[i - w_stride + d_stride];
+    if (w_min && d_min)
+      sum += pressure[i - w_stride - d_stride];
+    if (w_plus && d_min)
+      sum += pressure[i + w_stride - d_stride];
 
     d_sum += d2 * sum;
   }
 
+  // TODO: better check (epsilon)
   if (d3 != 0.0) {
     double sum = 0.0;
-    uint positions[D3_SIZE] = {
-        i + w_stride + h_stride + d_stride, i - w_stride + h_stride + d_stride,
-        i + w_stride - h_stride + d_stride, i - w_stride - h_stride + d_stride,
-        i + w_stride + h_stride - d_stride, i - w_stride + h_stride - d_stride,
-        i + w_stride - h_stride - d_stride, i - w_stride - h_stride - d_stride,
-    };
 
-    for (int i = 0; i < D3_SIZE; i++) {
-      uint pos = positions[i];
-      if (is_valid_position(size, pos)) {
-        sum += pressure[pos];
-      }
-    }
+    if (w_plus && h_plus && d_plus)
+      sum += pressure[i + w_stride + h_stride + d_stride];
+    if (w_min && h_plus && d_plus)
+      sum += pressure[i - w_stride + h_stride + d_stride];
+    if (w_plus && h_min && d_plus)
+      sum += pressure[i + w_stride - h_stride + d_stride];
+    if (w_min && h_min && d_plus)
+      sum += pressure[i - w_stride - h_stride + d_stride];
+    if (w_plus && h_plus && d_min)
+      sum += pressure[i + w_stride + h_stride - d_stride];
+    if (w_min && h_plus && d_min)
+      sum += pressure[i - w_stride + h_stride - d_stride];
+    if (w_plus && h_min && d_min)
+      sum += pressure[i + w_stride - h_stride - d_stride];
+    if (w_min && h_min && d_min)
+      sum += pressure[i - w_stride - h_stride - d_stride];
 
     d_sum += d3 * sum;
   }
@@ -100,13 +125,17 @@ __kernel void compact_step(__global double *previous_pressure,
     d_sum += d4 * current;
   }
 
-  pressure_next[i] = d_sum - previous;
+  // if (neighbour_count < 6) {
+  //   double n = (double) neighbour_count;
+  //   n_factor = n / 12.0;
+  // }
+
+  pressure_next[i] = n_factor * (d_sum - previous);
 }
 
 __kernel void analysis_step(__global double *pressure,
-                            __global double *analysis,
-                            __global char *geometry, uint size_w, uint size_h,
-                            uint size_d, double rho_dt_dx) {
+                            __global double *analysis, __global char *geometry,
+                            uint size_w, uint size_h, uint size_d, double dt) {
   size_t i = get_global_id(0);
   size_t w = (i / (size_h * size_d)) % size_w;
   size_t h = (i / (size_d)) % size_h;
@@ -114,7 +143,16 @@ __kernel void analysis_step(__global double *pressure,
 
   size_t size = size_d * size_h * size_w;
 
-  if (i < size) {
-    double current_pressure = pressure[i];
+  if (i >= size || i < 0) {
+    return;
   }
+
+  char geometry_type = geometry[i];
+
+  if (geometry_type > 0) {
+    return;
+  }
+
+  double current_pressure = pressure[i];
+  analysis[i] += current_pressure * dt;
 }

@@ -65,7 +65,7 @@ pub fn create_program(params: &parameters::SimulationParameters) -> ocl::Result<
 
   let analysis_kernel = queue
     .kernel_builder("analysis_step")
-    .arg(&p_buffer)
+    .arg(&pn_buffer)
     .arg(&analysis_buffer)
     .arg(&geometry_buffer)
     .arg(params.w_parts as u32)
@@ -123,12 +123,12 @@ pub fn run_kernels(sim: &mut simulation::Simulation) -> ocl::Result<()> {
       .pressure_kernel
       .enq()
       .expect("Cannot run pressure kernel!");
-
-    // sim
-    //   .kernel_prog
-    //   .analysis_kernel
-    //   .enq()
-    //   .expect("Cannot run analysis kernel!");
+      
+    sim
+      .kernel_prog
+      .analysis_kernel
+      .enq()
+      .expect("Cannot run analysis kernel!");
   }
 
   let read_buffers = [

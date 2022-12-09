@@ -52,6 +52,7 @@ fn main() {
     start_at: 0.0,
   });
 
+
   // TODO: geometry
   sim.calculate_neighbours();
 
@@ -81,11 +82,10 @@ fn main() {
     println!("Ran simulation!");
   } else {
     let max_fps: u64 = 60;
-    let target_window_width: u32 = 500;
-    let target_window_heigh: u32 = 500;
+    let target_window_size: u32 = env::var_num::<u32>("WINDOW_SIZE", Some(500u32));
     let iterations_per_step: u32 = env::var_num::<u32>("ITERATIONS_PER_STEP", Some(1u32));
 
-    let cell_size = cmp::min(target_window_width, target_window_heigh) as f64
+    let cell_size =(target_window_size) as f64
       / cmp::max(params.w_parts, params.d_parts) as f64;
 
     let w_width = (cell_size * (params.w_parts as f64)) as u32;
@@ -105,15 +105,21 @@ fn main() {
         }
         clear([1.0; 4], gfx);
 
-        let h = params.h_parts / 2;
+        let h = params.h_parts / 2 + 1;
         // sim.pressure.slice_axis(axis, indices);
         let slice = sim.pressure.slice(s![.., h, ..]);
 
         let mut max_value = 0f64;
-        for v in slice.iter() {
+        let mut max_analysis_value = 0f64;
+        for ((w, d), v) in slice.indexed_iter() {
+          if sim.is_source_position(w, h, d) || sim.neighbours[[w,h,d]] < 6 {
+            continue;
+          }
           max_value = v.abs().max(max_value);
+          max_analysis_value = sim.analysis[[w,h,d]].abs().max(max_analysis_value);
         }
         let scalar = max_value as f32;
+        let scalar_analysis = max_analysis_value as f32;
         println!("Time: {}s ({}) {}", sim.time, sim.iteration, max_value);
 
         if max_value == 0.0f64 {
@@ -122,10 +128,15 @@ fn main() {
 
         for ((w, d), v) in slice.indexed_iter() {
           let geometry = sim.geometry[[w, h, d]];
+          let neighbours = sim.neighbours[[w, h, d]];
+          let analysis = sim.analysis[[w, h, d]];
           let p = (*v as f32) / scalar;
+          let analysis = (analysis as f32) / scalar_analysis;
           let r = if p > 0f32 { p } else { 0f32 };
           let b = if p < 0f32 { -p } else { 0f32 };
-          let g = if geometry > 0 {0.1f32} else {0f32};
+          // let r = if analysis > 0f32 { analysis } else { 0f32 };
+          // let b = if analysis < 0f32 { -analysis } else { 0f32 };
+          let g = if neighbours > 0 && neighbours < 6 {(6 - neighbours) as f32 / 5f32} else {0f32};
 
           let x = w as f64 * cell_size;
           let y = d as f64 * cell_size;

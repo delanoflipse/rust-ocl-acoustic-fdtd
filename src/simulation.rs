@@ -91,6 +91,17 @@ impl<'a> Simulation<'a> {
     }
   }
 
+  pub fn is_source_position(&self, w: usize, h: usize, d: usize) -> bool {
+    for source in self.sources.iter() {
+      let [_w, _h, _d] = source.position;
+      if _w == w && _h == h && _d == d {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   pub fn calculate_neighbours(&mut self) {
     for ((w, h, d), g) in self.geometry.indexed_iter() {
       let mut neighour_count: i8 = 0;
@@ -110,7 +121,7 @@ impl<'a> Simulation<'a> {
         if d > 0 && self.geometry[[w, h, d - 1]] == 0 {
           neighour_count += 1;
         }
-        if d < self.params.d_parts - 1 && self.geometry[[w, h , d + 1]] == 0 {
+        if d < self.params.d_parts - 1 && self.geometry[[w, h, d + 1]] == 0 {
           neighour_count += 1;
         }
       }
