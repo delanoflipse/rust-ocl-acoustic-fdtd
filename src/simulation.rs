@@ -4,6 +4,10 @@ use ndarray::{Array3, Dim};
 
 use crate::{kernels, parameters};
 
+pub const WALL_FLAG: i8 = 1 << 1;
+pub const LISTENER_FLAG: i8 = 1 << 6;
+pub const SOURCE_FLAG: i8 = 1 << 7;
+
 pub struct Source {
   pub position: [usize; 3],
   pub frequency: f64,
@@ -12,7 +16,7 @@ pub struct Source {
   pub start_at: f64,
 }
 
-pub struct Simulation<'a> {
+pub struct Simulation {
   pub geometry: Array3<i8>,
   pub neighbours: Array3<i8>,
   pub pressure: Array3<f64>,
@@ -22,7 +26,7 @@ pub struct Simulation<'a> {
   pub iteration: i64,
   pub sources: Vec<Source>,
   pub kernel_prog: kernels::KernalProgram,
-  pub params: &'a parameters::SimulationParameters,
+  pub params: parameters::SimulationParameters,
 }
 
 pub fn create_grid_f64(params: &parameters::SimulationParameters) -> Array3<f64> {
@@ -34,19 +38,19 @@ pub fn create_grid_i8(params: &parameters::SimulationParameters) -> Array3<i8> {
   Array3::<i8>::zeros(shape)
 }
 
-impl<'a> Simulation<'a> {
-  pub fn new(params: &'a parameters::SimulationParameters) -> Self {
+impl Simulation {
+  pub fn new(params: parameters::SimulationParameters) -> Self{
     Self {
-      geometry: create_grid_i8(params),
-      neighbours: create_grid_i8(params),
-      pressure_previous: create_grid_f64(params),
-      pressure: create_grid_f64(params),
-      analysis: create_grid_f64(params),
+      geometry: create_grid_i8(&params),
+      neighbours: create_grid_i8(&params),
+      pressure_previous: create_grid_f64(&params),
+      pressure: create_grid_f64(&params),
+      analysis: create_grid_f64(&params),
       time: 0f64,
       iteration: 0,
       sources: vec![],
       params,
-      kernel_prog: kernels::create_program(params).expect("Failed to create kernel!"),
+      kernel_prog: kernels::create_program(&params).expect("Failed to create kernel!"),
     }
   }
 

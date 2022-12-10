@@ -155,4 +155,7 @@ __kernel void analysis_step(__global double *pressure,
 
   double current_pressure = pressure[i];
   analysis[i] += current_pressure * dt;
+  
+  // double current_max = analysis[i];
+  // analysis[i] = max(fabs(current_pressure), current_max);
 }
