@@ -113,10 +113,13 @@ fn main() {
           let analysis_value = sim.analysis[[w, h, d]];
           let p = (*v as f32) / scalar;
           let analysis = (analysis_value as f32) / scalar_analysis;
+
           // let r = if p > 0f32 { p } else { 0f32 };
           // let b = if p < 0f32 { -p } else { 0f32 };
+
           let r = if analysis > 0f32 { analysis } else { 0f32 };
           let b = if analysis < 0f32 { -analysis } else { 0f32 };
+
           let g = if neighbours > 0 && neighbours < 6 {(6 - neighbours) as f32 / 5f32} else {0f32};
           // let g = if analysis > 0f32 {analysis} else {-analysis};
 

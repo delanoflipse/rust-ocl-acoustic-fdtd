@@ -62,7 +62,7 @@ impl Simulation {
         let t0 = source.start_at;
         let t = self.time;
         let rel_t = t - t0;
-        let sigma = 0.0015;
+        let sigma = 0.001;
         let variance = sigma * sigma;
         let cos_factor = (2.0 * PI * rel_t * source.frequency).cos();
         let sqrt_var = (2.0 * PI * variance).sqrt();

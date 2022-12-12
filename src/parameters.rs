@@ -85,7 +85,7 @@ impl SimulationParameters {
   }
 
   pub fn scale(self, size: f64) -> usize {
-    (size / self.dx).floor() as usize
+    (size / self.dx).round() as usize
   }
 }
 

@@ -2,7 +2,7 @@ use crate::{simulation, parameters};
 
 pub fn living_room<'a>() -> simulation::Simulation {
   let params = parameters::SimulationParameters::new(7.1, 2.5, 4.1);
-  println!("{}w {}h {}d", params.w_parts, params.h_parts, params.d_parts);
+  println!("{}w {}h {}d. Total: {}", params.w_parts, params.h_parts, params.d_parts, params.grid_size);
   let mut sim = simulation::Simulation::new(params);
 
   let chimney_w = params.scale(1.1);
@@ -16,22 +16,31 @@ pub fn living_room<'a>() -> simulation::Simulation {
   }
 
   sim.sources.push(simulation::Source {
-    frequency: 100.0,
+    frequency: 600.0,
     invert_phase: false,
-    position: [chimney_x + chimney_w + params.scale(0.3), params.h_parts / 2, chimney_d + params.scale(0.15)],
+    position: [chimney_x + chimney_w + params.scale(0.4), params.h_parts / 2, chimney_d - params.scale(0.1)],
     // pulses: i64::MAX,
     pulses: 1,
     start_at: 0.0,
   });
 
   sim.sources.push(simulation::Source {
-    frequency: 100.0,
+    frequency: 600.0,
     invert_phase: false,
-    position: [chimney_x / 2, params.h_parts / 2, chimney_d + params.scale(0.15)],
+    position: [chimney_x / 2, params.h_parts / 2, params.d_parts - params.scale(0.1)],
     // pulses: i64::MAX,
     pulses: 1,
     start_at: 0.0,
   });
+
+  // sim.sources.push(simulation::Source {
+  //   frequency: 600.0,
+  //   invert_phase: false,
+  //   position: [params.w_parts / 2, params.h_parts / 2, params.d_parts / 2],
+  //   // pulses: i64::MAX,
+  //   pulses: 1,
+  //   start_at: 0.0,
+  // });
 
   return sim;
 }
